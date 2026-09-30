@@ -11,11 +11,15 @@ on:
       native_rounds:
         description: PureJavaVt rounds per run on native (more rounds = more freeze/thaw + sampler exposure)
         default: '400'
+      run_native:
+        description: run the native RISE job
+        default: 'true'
+      cases:
+        description: space separated cases (empty = all)
+        default: ''
       qemu_rounds:
         description: PureJavaVt rounds per run under QEMU
         default: '50'
-  push:
-    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +28,7 @@ concurrency:
 jobs:
   native-riscv64:
     name: native riscv64 (RISE runner)
+    if: ${{ inputs.run_native != 'false' }}
     runs-on: ubuntu-24.04-riscv
     timeout-minutes: 120
     steps:
@@ -36,7 +41,7 @@ jobs:
           # The runner image ships Temurin 17 and sets JAVA_HOME to it.
           echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)" >> "$GITHUB_ENV"
       - name: Run matrix
-        run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '15' }}" "${{ inputs.native_rounds || '400' }}"
+        run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '15' }}" "${{ inputs.native_rounds || '400' }}" "${{ inputs.cases }}"
       - name: Publish summary
         if: always()
         run: cat results/native-riscv64/env.md results/native-riscv64/summary.md >> "$GITHUB_STEP_SUMMARY" || true
@@ -64,7 +69,7 @@ jobs:
           dockerRunArgs: |
             --volume "${PWD}:/work"
           run: |
-            mkdir -p /work/results && cd /work && ./run-matrix.sh qemu-riscv64 "${{ inputs.qemu_runs || '12' }}" "${{ inputs.qemu_rounds || '50' }}"
+            mkdir -p /work/results && cd /work && ./run-matrix.sh qemu-riscv64 "${{ inputs.qemu_runs || '12' }}" "${{ inputs.qemu_rounds || '50' }}" "${{ inputs.cases }}"
       - name: Publish summary
         if: always()
         run: cat results/qemu-riscv64/env.md results/qemu-riscv64/summary.md >> "$GITHUB_STEP_SUMMARY" || true

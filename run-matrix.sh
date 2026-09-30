@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# usage: run-matrix.sh <label> <runs-per-case> [rounds]
+# usage: run-matrix.sh <label> <runs-per-case> [rounds] ["case case ..."]
 # Runs PureJavaVt under three JFR configurations and counts JVM crashes.
 set -u
 label=${1:?label}; runs=${2:-20}; rounds=${3:-50}
@@ -30,10 +30,12 @@ declare -A OPTS=(
   [jfr-on]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m"
   [jfr-on-nosampling]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m,jdk.ExecutionSample#enabled=false,jdk.NativeMethodSample#enabled=false"
   # stress: ~20x more sampler signals than the default 20 ms period
+  # same stress, JVM-side RVV code paths off (no-op where the CPU has no RVV)
+  [jfr-on-1ms-norvv]="-XX:+UnlockDiagnosticVMOptions -XX:-UseRVV -XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m,jdk.ExecutionSample#period=1ms,jdk.NativeMethodSample#period=1ms"
   [jfr-on-1ms]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m,jdk.ExecutionSample#period=1ms,jdk.NativeMethodSample#period=1ms"
 )
 { echo; echo "rounds per run: $rounds"; echo; echo "| case | runs | pass | crash (hs_err) | JFR start failure | other failure | avg s/run |"; echo "|---|---|---|---|---|---|---|"; } > "$out/summary.md"
-for c in jfr-off jfr-on jfr-on-nosampling jfr-on-1ms; do
+for c in ${4:-jfr-off jfr-on jfr-on-nosampling jfr-on-1ms jfr-on-1ms-norvv}; do
   pass=0; crash=0; other=0; jfrfail=0; t0=$(date +%s)
   for i in $(seq 1 "$runs"); do
     d="$out/$c-$i"; mkdir -p "$d"
