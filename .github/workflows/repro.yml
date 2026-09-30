@@ -23,6 +23,8 @@ jobs:
           SUDO=""; [ "$(id -u)" = 0 ] || SUDO=sudo
           $SUDO apt-get update -q
           $SUDO apt-get install -q -y openjdk-25-jdk-headless
+          # The runner image ships Temurin 17 and sets JAVA_HOME to it.
+          echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)" >> "$GITHUB_ENV"
       - name: Run matrix
         run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '30' }}"
       - uses: actions/upload-artifact@v4
