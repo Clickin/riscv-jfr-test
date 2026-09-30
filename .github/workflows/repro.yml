@@ -1,0 +1,63 @@
+name: repro
+on:
+  workflow_dispatch:
+    inputs:
+      native_runs:
+        description: runs per case on the native riscv64 runner
+        default: '30'
+      qemu_runs:
+        description: runs per case under QEMU
+        default: '8'
+  push:
+    branches: [main]
+
+jobs:
+  native-riscv64:
+    name: native riscv64 (RISE runner)
+    runs-on: ubuntu-24.04-riscv
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install JDK 25
+        run: |
+          SUDO=""; [ "$(id -u)" = 0 ] || SUDO=sudo
+          $SUDO apt-get update -q
+          $SUDO apt-get install -q -y openjdk-25-jdk-headless
+      - name: Run matrix
+        run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '30' }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-riscv64
+          path: results/
+          if-no-files-found: ignore
+
+  qemu-riscv64:
+    name: QEMU riscv64 (same as sqlite-jdbc CI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v6
+      - uses: uraimo/run-on-arch-action@v3
+        with:
+          arch: riscv64
+          distro: ubuntu_latest
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update -q -y
+            apt-get install -q -y openjdk-25-jdk-headless
+          dockerRunArgs: |
+            --volume "${PWD}:/work"
+          env: |
+            GITHUB_STEP_SUMMARY: /work/results/step-summary.md
+          run: |
+            mkdir -p /work/results && cd /work && ./run-matrix.sh qemu-riscv64 "${{ inputs.qemu_runs || '8' }}"
+      - name: Publish summary
+        if: always()
+        run: cat results/step-summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: qemu-riscv64
+          path: results/
+          if-no-files-found: ignore
