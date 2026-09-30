@@ -6,7 +6,7 @@ label=${1:?label}; runs=${2:-20}; rounds=${3:-50}
 out=results/$label; mkdir -p "$out"
 J=${JAVA_HOME:+$JAVA_HOME/bin/}java
 JC=${JAVA_HOME:+$JAVA_HOME/bin/}javac
-major=$($J -version 2>&1 | sed -n '1s/.*version "\([0-9]*\).*/\1/p')
+major=$($J -version 2>&1 | grep -m1 -o 'version "[0-9]*' | grep -o '[0-9]*$')
 if [ "${major:-0}" -lt 25 ]; then
   echo "ERROR: need JDK 25, found '$($J -version 2>&1 | head -1)' (JAVA_HOME=${JAVA_HOME:-unset})" >&2
   exit 2
