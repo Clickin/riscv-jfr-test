@@ -29,10 +29,12 @@ declare -A OPTS=(
   [jfr-off]=""
   [jfr-on]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m"
   [jfr-on-nosampling]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m,jdk.ExecutionSample#enabled=false,jdk.NativeMethodSample#enabled=false"
+  # stress: ~20x more sampler signals than the default 20 ms period
+  [jfr-on-1ms]="-XX:StartFlightRecording=filename=@DIR@/rec.jfr,dumponexit=true,maxsize=20m,jdk.ExecutionSample#period=1ms,jdk.NativeMethodSample#period=1ms"
 )
-{ echo; echo "| case | runs | pass | crash (hs_err) | other failure |"; echo "|---|---|---|---|---|"; } > "$out/summary.md"
-for c in jfr-off jfr-on jfr-on-nosampling; do
-  pass=0; crash=0; other=0
+{ echo; echo "rounds per run: $rounds"; echo; echo "| case | runs | pass | crash (hs_err) | JFR start failure | other failure | avg s/run |"; echo "|---|---|---|---|---|---|---|"; } > "$out/summary.md"
+for c in jfr-off jfr-on jfr-on-nosampling jfr-on-1ms; do
+  pass=0; crash=0; other=0; jfrfail=0; t0=$(date +%s)
   for i in $(seq 1 "$runs"); do
     d="$out/$c-$i"; mkdir -p "$d"
     o=${OPTS[$c]//@DIR@/$d}
@@ -41,10 +43,10 @@ for c in jfr-off jfr-on jfr-on-nosampling; do
     rc=$?
     if ls "$d"/hs_err_*.log >/dev/null 2>&1; then crash=$((crash+1)); echo "$c #$i CRASH rc=$rc"
     elif [ $rc -eq 0 ] && grep -q PURE-PASS "$d/stdout.txt"; then pass=$((pass+1)); rm -rf "$d"
+    elif grep -q "Failure when starting JFR" "$d/stdout.txt" "$d/stderr.txt"; then jfrfail=$((jfrfail+1)); echo "$c #$i JFR-START-FAILURE rc=$rc"
     else other=$((other+1)); echo "$c #$i OTHER rc=$rc"; fi
   done
-  echo "| $c | $runs | $pass | $crash | $other |" >> "$out/summary.md"
+  echo "| $c | $runs | $pass | $crash | $jfrfail | $other | $(( ($(date +%s) - t0) / runs )) |" >> "$out/summary.md"
 done
 cat "$out/summary.md"
-{ cat "$out/env.md"; cat "$out/summary.md"; } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 exit 0

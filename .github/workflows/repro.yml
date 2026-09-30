@@ -4,12 +4,22 @@ on:
     inputs:
       native_runs:
         description: runs per case on the native riscv64 runner
-        default: '30'
+        default: '15'
       qemu_runs:
         description: runs per case under QEMU
-        default: '8'
+        default: '12'
+      native_rounds:
+        description: PureJavaVt rounds per run on native (more rounds = more freeze/thaw + sampler exposure)
+        default: '400'
+      qemu_rounds:
+        description: PureJavaVt rounds per run under QEMU
+        default: '50'
   push:
     branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   native-riscv64:
@@ -26,7 +36,10 @@ jobs:
           # The runner image ships Temurin 17 and sets JAVA_HOME to it.
           echo "JAVA_HOME=/usr/lib/jvm/java-25-openjdk-$(dpkg --print-architecture)" >> "$GITHUB_ENV"
       - name: Run matrix
-        run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '30' }}"
+        run: ./run-matrix.sh native-riscv64 "${{ inputs.native_runs || '15' }}" "${{ inputs.native_rounds || '400' }}"
+      - name: Publish summary
+        if: always()
+        run: cat results/native-riscv64/env.md results/native-riscv64/summary.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -50,13 +63,11 @@ jobs:
             apt-get install -q -y openjdk-25-jdk-headless
           dockerRunArgs: |
             --volume "${PWD}:/work"
-          env: |
-            GITHUB_STEP_SUMMARY: /work/results/step-summary.md
           run: |
-            mkdir -p /work/results && cd /work && ./run-matrix.sh qemu-riscv64 "${{ inputs.qemu_runs || '8' }}"
+            mkdir -p /work/results && cd /work && ./run-matrix.sh qemu-riscv64 "${{ inputs.qemu_runs || '12' }}" "${{ inputs.qemu_rounds || '50' }}"
       - name: Publish summary
         if: always()
-        run: cat results/step-summary.md >> "$GITHUB_STEP_SUMMARY" || true
+        run: cat results/qemu-riscv64/env.md results/qemu-riscv64/summary.md >> "$GITHUB_STEP_SUMMARY" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
